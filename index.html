@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Facebook Login</title>
+  <!-- <script>
+    window.fbAsyncInit = function() {
+      FB.init({
+        appId            : '671702068686754',  // Replace with your Facebook App ID
+        autoLogAppEvents : true,
+        xfbml            : true,
+        version          : "v15.0"  // Facebook SDK version
+      });
+    };
+  </script> -->
+
+
+
+<script>
+  window.fbAsyncInit = function() {
+    FB.init({
+      appId            : '665303969425082',
+      autoLogAppEvents : true,
+      xfbml            : true,
+      version          : 'v22.0'
+    });
+  };
+</script>
+<script async defer crossorigin="anonymous"
+  src="https://connect.facebook.net/en_US/sdk.js">
+</script>
+
+
+  <script async defer crossorigin="anonymous"
+    src="https://connect.facebook.net/en_US/sdk.js">
+  </script>
+</head>
+<body>
+  <h1>Login with Facebook</h1>
+  <!-- Facebook Login Button -->
+  <fb:login-button 
+    scope="public_profile,email" 
+    onlogin="checkLoginState();">
+  </fb:login-button>
+  
+  <div id="status"></div>
+
+  <script>
+    function checkLoginState() {
+      FB.getLoginStatus(function(response) {
+        statusChangeCallback(response);
+      });
+    }
+
+    function statusChangeCallback(response) {
+      if (response.status === 'connected') {
+        FB.api('/me', {fields: 'id,name,email'}, function(userInfo) {
+          console.log(userInfo);
+          document.getElementById('status').innerHTML = 'Logged in as ' + userInfo.name;
+        });
+      } else {
+        document.getElementById('status').innerHTML = 'Please log in with Facebook.';
+      }
+    }
+  </script>
+</body>
+</html>
+
