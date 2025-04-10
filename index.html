@@ -1,69 +1,83 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Facebook Login</title>
-  <!-- <script>
-    window.fbAsyncInit = function() {
-      FB.init({
-        appId            : '671702068686754',  // Replace with your Facebook App ID
-        autoLogAppEvents : true,
-        xfbml            : true,
-        version          : "v15.0"  // Facebook SDK version
-      });
-    };
-  </script> -->
-
-
-
-<script>
-  window.fbAsyncInit = function() {
-    FB.init({
-      appId            : '665303969425082',
-      autoLogAppEvents : true,
-      xfbml            : true,
-      version          : 'v22.0'
-    });
-  };
-</script>
-<script async defer crossorigin="anonymous"
-  src="https://connect.facebook.net/en_US/sdk.js">
-</script>
-
-
-  <script async defer crossorigin="anonymous"
-    src="https://connect.facebook.net/en_US/sdk.js">
-  </script>
-</head>
-<body>
-  <h1>Login with Facebook</h1>
-  <!-- Facebook Login Button -->
-  <fb:login-button 
-    scope="public_profile,email" 
-    onlogin="checkLoginState();">
-  </fb:login-button>
-  
-  <div id="status"></div>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Facebook Login Test</title>
 
   <script>
-    function checkLoginState() {
+    window.fbAsyncInit = function() {
+      FB.init({
+        appId            : '665303969425082', // Your Facebook App ID
+        autoLogAppEvents : true,
+        xfbml            : false,
+        version          : 'v22.0',
+        cookie           : true
+      });
+
+      // Check login status on page load
       FB.getLoginStatus(function(response) {
         statusChangeCallback(response);
       });
-    }
+    };
+
+    // Load the SDK asynchronously
+    (function(d, s, id){
+      var js, fjs = d.getElementsByTagName(s)[0];
+      if (d.getElementById(id)) { return; }
+      js = d.createElement(s); js.id = id;
+      js.src = "https://connect.facebook.net/en_US/sdk.js";
+      fjs.parentNode.insertBefore(js, fjs);
+    }(document, 'script', 'facebook-jssdk'));
 
     function statusChangeCallback(response) {
       if (response.status === 'connected') {
-        FB.api('/me', {fields: 'id,name,email'}, function(userInfo) {
-          console.log(userInfo);
-          document.getElementById('status').innerHTML = 'Logged in as ' + userInfo.name;
+        FB.api('/me', { fields: 'name,email' }, function(user) {
+          document.getElementById('status').innerText =
+            'Logged in as: ' + user.name + ' (' + user.email + ')';
+          console.log('User:', user);
         });
       } else {
-        document.getElementById('status').innerHTML = 'Please log in with Facebook.';
+        document.getElementById('status').innerText =
+          'Not logged in. Click the button below to log in with Facebook.';
       }
     }
+
+    function triggerFBLogin() {
+      FB.login(function(response) {
+        if (response.status === 'connected') {
+          statusChangeCallback(response);
+        } else {
+          alert('Login failed or cancelled.');
+        }
+      }, { scope: 'public_profile,email' });
+    }
   </script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding-top: 80px;
+    }
+    button {
+      font-size: 16px;
+      padding: 12px 24px;
+      margin-top: 20px;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 30px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Facebook Login Demo</h1>
+
+  <button onclick="triggerFBLogin()">Login with Facebook</button>
+
+  <div id="status">Checking login status...</div>
 </body>
 </html>
-
