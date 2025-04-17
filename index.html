@@ -26,12 +26,14 @@
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'WA_EMBEDDED_SIGNUP') {
-          console.log('message event: ', data); // Remove after testing
-          // Your code goes here
+          console.log('Embedded Signup Data:', data);
+          // Log WABA ID and phone number ID
+          const { waba_id, phone_number_id } = data.data;
+          console.log('WABA ID:', waba_id);
+          console.log('Phone Number ID:', phone_number_id);
         }
-      } catch {
-        console.log('message event: ', event.data); // Remove after testing
-        // Your code goes here
+      } catch (error) {
+        console.error('Error parsing message event:', error);
       }
     });
 
@@ -39,11 +41,11 @@
     const fbLoginCallback = (response) => {
       if (response.authResponse) {
         const code = response.authResponse.code;
-        console.log('response: ', code); // Remove after testing
-        // Your code goes here
+        console.log('Auth Response Code:', code);
+        // Send code to your server to exchange for a business token
+        // Example: fetch('/exchange_code', { method: 'POST', body: JSON.stringify({ code }) });
       } else {
-        console.log('response: ', response); // Remove after testing
-        // Your code goes here
+        console.error('Login failed:', response);
       }
     };
 
@@ -54,8 +56,6 @@
         response_type: 'code',
         override_default_response_type: true,
         extras: {
-          setup: {},
-          featureType: '',
           sessionInfoVersion: '3',
         }
       });
