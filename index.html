@@ -1,101 +1,68 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Facebook Login</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Embedded Signup</title>
+</head>
+<body>
+  <!-- SDK loading -->
+  <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
 
   <script>
-    // Load Facebook SDK
+    // SDK initialization
     window.fbAsyncInit = function() {
       FB.init({
-        appId            : '665303969425082', // Replace with your Facebook App ID
-        autoLogAppEvents : true,
-        xfbml            : false,
-        version          : 'v22.0',
-        cookie           : true
-      });
-
-      // Check login status when SDK loads
-      FB.getLoginStatus(function(response) {
-        statusChangeCallback(response);
+        appId: '665303969425082', // Replace with your app ID
+        autoLogAppEvents: true,
+        xfbml: true,
+        version: 'v22.0' // Replace with the Graph API version
       });
     };
 
-    (function(d, s, id){
-      var js, fjs = d.getElementsByTagName(s)[0];
-      if (d.getElementById(id)) { return; }
-      js = d.createElement(s); js.id = id;
-      js.src = "https://connect.facebook.net/en_US/sdk.js";
-      fjs.parentNode.insertBefore(js, fjs);
-    }(document, 'script', 'facebook-jssdk'));
-
-    function triggerFBLogin() {
-      FB.login(function(response) {
-        if (response.status === 'connected') {
-          statusChangeCallback(response);
-        } else {
-          alert('Login failed or was cancelled.');
+    // Session logging message event listener
+    window.addEventListener('message', (event) => {
+      if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") return;
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'WA_EMBEDDED_SIGNUP') {
+          console.log('message event: ', data); // Remove after testing
+          // Your code goes here
         }
-      }, {
-        scope: 'public_profile,email',
-        auth_type: 'rerequest' // Re-request permission if denied earlier
-      });
-    }
-
-    function statusChangeCallback(response) {
-      if (response.status === 'connected') {
-        const accessToken = FB.getAccessToken();
-
-        FB.api('/me', {
-          fields: 'name,email',
-          access_token: accessToken
-        }, function(user) {
-          if (!user.email) {
-            document.getElementById('status').innerText = `Logged in as ${user.name}, but no email was returned.`;
-          } else {
-            document.getElementById('status').innerText = `Logged in as: ${user.name} (${user.email})`;
-          }
-          console.log('User Info:', user);
-        });
-
-        // Check what permissions the user actually granted (debug only)
-        FB.api('/me/permissions', function(permissions) {
-          console.log('User Permissions:', permissions);
-        });
-
-      } else {
-        document.getElementById('status').innerText = 'Not logged in. Click below to log in with Facebook.';
+      } catch {
+        console.log('message event: ', event.data); // Remove after testing
+        // Your code goes here
       }
-    }
+    });
+
+    // Response callback
+    const fbLoginCallback = (response) => {
+      if (response.authResponse) {
+        const code = response.authResponse.code;
+        console.log('response: ', code); // Remove after testing
+        // Your code goes here
+      } else {
+        console.log('response: ', response); // Remove after testing
+        // Your code goes here
+      }
+    };
+
+    // Launch method and callback registration
+    const launchWhatsAppSignup = () => {
+      FB.login(fbLoginCallback, {
+        config_id: '9698426723575894', // Replace with your configuration ID
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+          featureType: '',
+          sessionInfoVersion: '3',
+        }
+      });
+    };
   </script>
 
-  <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      padding-top: 80px;
-      background-color: #f4f4f4;
-    }
-    button {
-      font-size: 16px;
-      padding: 12px 24px;
-      background-color: #1877f2;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    #status {
-      margin-top: 30px;
-      font-weight: bold;
-    }
-  </style>
-</head>
-
-<body>
-  <h1>Facebook Login Demo</h1>
-  <button onclick="triggerFBLogin()">Login with Facebook</button>
-  <div id="status">Checking login status...</div>
+  <!-- Launch button -->
+  <button onclick="launchWhatsAppSignup()" style="background-color: #1877f2; border: 0; border-radius: 4px; color: #fff; cursor: pointer; font-family: Helvetica, Arial, sans-serif; font-size: 16px; font-weight: bold; height: 40px; padding: 0 24px;">Login with Facebook</button>
 </body>
 </html>
