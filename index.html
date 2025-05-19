@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WhatsApp Login & Send</title>
+  <title>WhatsApp Signup & Send</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
     button { margin: 5px; padding: 10px 20px; font-size: 16px; }
@@ -12,8 +12,7 @@
 </head>
 <body>
   <h1>WhatsApp Embedded Signup</h1>
-  <button id="loginBtn">Login & Send Message</button>
-
+  <button id="actionBtn">Start Signup & Send</button>
   <div id="status"></div>
 
   <!-- Facebook SDK -->
@@ -24,80 +23,63 @@
     // --- Configuration ---
     const FB_APP_ID    = '665303969425082';
     const FB_CONFIG_ID = '9698426723575894';
-    // URL of your backend service. In development use http://localhost:3000, in production replace with your deployed backend domain
-// URL of your backend service
-const BACKEND_URL = 'https://facebooklogin-phi.vercel.app';
+    const BACKEND_URL  = 'https://facebooklogin-phi.vercel.app';
 
     // --- UI & State ---
-    const btn    = document.getElementById('loginBtn');
+    const btn    = document.getElementById('actionBtn');
     const status = document.getElementById('status');
-    let phoneNumberId;
 
     function log(msg) {
       console.log(msg);
-      status.textContent += msg + '\n';
+      status.textContent += msg + '
+';
     }
 
-    // Initialize Facebook SDK
+    // Initialize FB SDK
     window.fbAsyncInit = () => {
-      FB.init({ appId: FB_APP_ID, version: 'v22.0' });
+      FB.init({ appId: FB_APP_ID, version: 'v22.0', xfbml: false });
       log('✅ FB SDK initialized');
     };
 
-    // Listen for WA Embedded Signup
-    window.addEventListener('message', ({ origin, data }) => {
-      if (!['https://www.facebook.com','https://web.facebook.com'].includes(origin)) return;
-      try {
-        const msg = JSON.parse(data);
-        if (msg.type === 'WA_EMBEDDED_SIGNUP') {
-          phoneNumberId = msg.data.phone_number_id;
-          log(`✅ Received phone_number_id: ${phoneNumberId}`);
-        }
-      } catch (e) {
-        log('❌ Error parsing message: ' + e.message);
-      }
-    });
-
-    // Handle login & send
+    // On button click, open WhatsApp Embedded Signup UI via FB.ui
     btn.onclick = () => {
-      if (!phoneNumberId) {
-        log('🔔 First complete the embedded signup.');
-        return;
-      }
       btn.disabled = true;
-      log('🔄 Starting FB.login...');
+      log('🔄 Opening WhatsApp Embedded Signup...');
 
-      FB.login(response => {
-        if (!response.authResponse || !response.authResponse.code) {
-          log('❌ Login failed');
+      FB.ui({
+        method: 'whatsapp_business_signup',
+        config_id: FB_CONFIG_ID,
+        response_type: 'code',
+        redirect_uri: window.location.origin
+      }, async response => {
+        log('📥 Signup callback: ' + JSON.stringify(response));
+        if (!response || !response.code || !response.phone_number_id) {
+          log('❌ Signup failed or canceled');
           btn.disabled = false;
           return;
         }
-        const code = response.authResponse.code;
-        log(`✅ Auth code: ${code}`);
+        const { code, phone_number_id } = response;
+        log(`✅ Received code: ${code}`);
+        log(`✅ Received phone_number_id: ${phone_number_id}`);
 
         // Call backend to exchange code & send message
-        fetch(`${BACKEND_URL}/send_message`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, phone_number_id: phoneNumberId })
-        })
-        .then(res => res.json().then(data => ({ status: res.status, data })))
-        .then(({ status, data }) => {
-          log(`↩️ HTTP ${status}`);
-          if (status !== 200) {
-            log('❌ Backend error: ' + JSON.stringify(data));
-          } else {
-            log('✅ Message sent: ' + JSON.stringify(data));
-          }
-        })
-        .catch(err => log('❌ Fetch error: ' + err.message))
-        .finally(() => { btn.disabled = false; });
-      }, {
-        config_id: FB_CONFIG_ID,
-        response_type: 'code',
-        override_default_response_type: true,
-        extras: { sessionInfoVersion: '3' }
+        try {
+          log('🔄 Calling backend to send message');
+          const res = await fetch(BACKEND_URL + '/send_message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, phone_number_id })
+          });
+          log('⬅️ HTTP ' + res.status);
+          const data = await res.json();
+          log('📦 Backend response: ' + JSON.stringify(data));
+          if (!res.ok) throw new Error(data.error || 'Backend failed');
+          log('✅ Message sent successfully');
+        } catch (err) {
+          log('❌ Backend error: ' + err.message);
+        } finally {
+          btn.disabled = false;
+        }
       });
     };
   </script>
