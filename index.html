@@ -25,11 +25,16 @@
       statusEl.textContent += msg + '\n';
     }
 
+    console.log('🔧 Frontend script loading');
+
     window.fbAsyncInit = function() {
+      console.log('🔧 FB SDK init');
       FB.init({ appId: '665303969425082', version: 'v22.0' });
+      logStatus('FB SDK initialized');
     };
 
     window.addEventListener('message', ({ origin, data }) => {
+      console.log('🔔 message event', origin, data);
       if (!['https://www.facebook.com','https://web.facebook.com'].includes(origin)) return;
       try {
         const msg = JSON.parse(data);
@@ -37,10 +42,13 @@
           phoneNumberId = msg.data.phone_number_id;
           logStatus(`Received phone_number_id: ${phoneNumberId}`);
         }
-      } catch {}
+      } catch (e) {
+        console.error('❌ Error parsing message event:', e);
+      }
     });
 
     loginBtn.addEventListener('click', () => {
+      console.log('🔘 Login button clicked');
       loginBtn.disabled = true;
       logStatus('Starting FB login...');
 
@@ -52,14 +60,15 @@
       });
     });
 
-    // Non-async callback; wraps async logic inside IIFE
     function handleFbLoginResponse(resp) {
+      console.log('📥 FB.login callback', resp);
       if (!resp.authResponse) {
         logStatus('Login failed.');
         loginBtn.disabled = false;
         return;
       }
       const code = resp.authResponse.code;
+      logStatus(`Auth code received: ${code}`);
       if (!phoneNumberId) {
         logStatus('phone_number_id not received yet.');
         loginBtn.disabled = false;
@@ -73,6 +82,7 @@
             method: 'POST', headers: { 'Content-Type':'application/json' },
             body: JSON.stringify({ code, phone_number_id: phoneNumberId })
           });
+          logStatus(`HTTP status from /exchange_code: ${res.status}`);
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Unknown error');
 
