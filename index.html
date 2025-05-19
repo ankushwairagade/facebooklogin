@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WhatsApp Signup & Integration</title>
+  <title>WhatsApp Embedded Signup & Integration</title>
   <style>
     #loginBtn:disabled { opacity: 0.6; cursor: not-allowed; }
-    #status { margin-top: 1em; white-space: pre-wrap; font-family: monospace; }
+    #status { margin-top:1em; white-space:pre-wrap; font-family:monospace; }
   </style>
 </head>
 <body>
@@ -15,27 +15,22 @@
 
   <script async defer src="https://connect.facebook.net/en_US/sdk.js"></script>
   <script>
+    const API_BASE = 'https://facebooklogin-phi.vercel.app';
     const loginBtn = document.getElementById('loginBtn');
     const statusEl = document.getElementById('status');
-    const API_BASE = 'https://facebooklogin-phi.vercel.app';
     let phoneNumberId = null;
 
-    const logStatus = msg => {
+    function logStatus(msg) {
       console.log(msg);
       statusEl.textContent += msg + '\n';
-    };
+    }
 
-    window.fbAsyncInit = () => {
-      FB.init({
-        appId: '665303969425082',
-        version: 'v22.0',
-        xfbml: false,
-        autoLogAppEvents: false
-      });
+    window.fbAsyncInit = function() {
+      FB.init({ appId: '665303969425082', version: 'v22.0' });
     };
 
     window.addEventListener('message', ({ origin, data }) => {
-      if (!['https://www.facebook.com', 'https://web.facebook.com'].includes(origin)) return;
+      if (!['https://www.facebook.com','https://web.facebook.com'].includes(origin)) return;
       try {
         const msg = JSON.parse(data);
         if (msg.type === 'WA_EMBEDDED_SIGNUP') {
@@ -49,24 +44,33 @@
       loginBtn.disabled = true;
       logStatus('Starting FB login...');
 
-      FB.login(async resp => {
-        if (!resp.authResponse) {
-          logStatus('Login failed.');
-          loginBtn.disabled = false;
-          return;
-        }
-        const code = resp.authResponse.code;
-        if (!phoneNumberId) {
-          logStatus('phone_number_id not received yet.');
-          loginBtn.disabled = false;
-          return;
-        }
+      FB.login(handleFbLoginResponse, {
+        config_id: '9698426723575894',
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: { sessionInfoVersion: '3' }
+      });
+    });
 
+    // Non-async callback; wraps async logic inside IIFE
+    function handleFbLoginResponse(resp) {
+      if (!resp.authResponse) {
+        logStatus('Login failed.');
+        loginBtn.disabled = false;
+        return;
+      }
+      const code = resp.authResponse.code;
+      if (!phoneNumberId) {
+        logStatus('phone_number_id not received yet.');
+        loginBtn.disabled = false;
+        return;
+      }
+
+      (async () => {
         logStatus('Exchanging code for access token...');
         try {
           const res = await fetch(`${API_BASE}/exchange_code`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type':'application/json' },
             body: JSON.stringify({ code, phone_number_id: phoneNumberId })
           });
           const data = await res.json();
@@ -79,13 +83,8 @@
         } finally {
           loginBtn.disabled = false;
         }
-      }, {
-        config_id: '9698426723575894',
-        response_type: 'code',
-        override_default_response_type: true,
-        extras: { sessionInfoVersion: '3' }
-      });
-    });
+      })();
+    }
   </script>
 </body>
 </html>

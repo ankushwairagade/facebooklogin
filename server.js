@@ -18,8 +18,7 @@ if (!FB_APP_ID || !FB_APP_SECRET || !REDIRECT_URI) {
 }
 
 async function graphGet(path, token) {
-  const url = `https://graph.facebook.com/v22.0/${path}`;
-  const res = await fetch(url, {
+  const res = await fetch(`https://graph.facebook.com/v22.0/${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {}
   });
   if (!res.ok) {
@@ -30,8 +29,7 @@ async function graphGet(path, token) {
 }
 
 async function graphPost(path, token, body) {
-  const url = `https://graph.facebook.com/v22.0/${path}`;
-  const res = await fetch(url, {
+  const res = await fetch(`https://graph.facebook.com/v22.0/${path}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
@@ -43,6 +41,7 @@ async function graphPost(path, token, body) {
   return res.json();
 }
 
+// Exchange code for token & fetch assets
 app.post('/exchange_code', async (req, res) => {
   const { code, phone_number_id } = req.body;
   if (!code || !phone_number_id) {
@@ -62,30 +61,21 @@ app.post('/exchange_code', async (req, res) => {
       graphGet(`${phone_number_id}/message_templates?limit=50&fields=name,language,category`, access_token)
     ]);
 
-    res.json({
-      access_token,
-      phone_number_id,
-      phone_details: phoneDetails,
-      message_templates: templates.data
-    });
+    res.json({ access_token, phone_number_id, phone_details: phoneDetails, message_templates: templates.data });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
 
+// Send template message
 app.post('/send_message', async (req, res) => {
   const { access_token, phone_number_id, to, template_name, language } = req.body;
   if (!access_token || !phone_number_id || !to || !template_name || !language) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   try {
-    const payload = {
-      messaging_product: 'whatsapp',
-      to,
-      type: 'template',
-      template: { name: template_name, language: { code: language } }
-    };
+    const payload = { messaging_product: 'whatsapp', to, type: 'template', template: { name: template_name, language: { code: language } } };
     const result = await graphPost(`${phone_number_id}/messages`, access_token, payload);
     res.json(result);
   } catch (err) {
@@ -94,9 +84,10 @@ app.post('/send_message', async (req, res) => {
   }
 });
 
+// Global error handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
