@@ -22,9 +22,9 @@
 
   <script>
     // === Configuration ===
-    const FB_APP_ID      = '665303969425082';
-    const FB_APP_SECRET  = 'f5ce60bc67adbe6a24b6a46273e12b95';
-    const REDIRECT_URI   = window.location.origin;
+    const FB_APP_ID        = '665303969425082';
+    const FB_APP_SECRET    = 'f5ce60bc67adbe6a24b6a46273e12b95';
+    const REDIRECT_URI     = window.location.origin;
     const RECIPIENT_NUMBER = '+917276517716';
 
     // === UI Elements & State ===
@@ -36,8 +36,7 @@
 
     function log(msg) {
       console.log(msg);
-      statusEl.textContent += msg + '
-';
+      statusEl.textContent += msg + '\n';
     }
 
     // Initial load
@@ -50,10 +49,10 @@
       log('✅ FB SDK initialized');
     };
 
-    // Listen for WA Embedded Signup event
+    // Listen for Embedded Signup event
     window.addEventListener('message', ({ origin, data }) => {
       log(`🔔 message event from ${origin}`);
-      if (!['https://www.facebook.com','https://web.facebook.com'].includes(origin)) return;
+      if (!['https://www.facebook.com', 'https://web.facebook.com'].includes(origin)) return;
       try {
         const msg = JSON.parse(data);
         log('📩 Parsed message: ' + data);
@@ -66,19 +65,19 @@
       }
     });
 
-    // 1️⃣ Login & exchange code for access token
+    // 1️⃣ Login & Exchange Code
     loginBtn.onclick = () => {
       log('🔘 loginBtn clicked');
       loginBtn.disabled = true;
       log('🔄 Starting FB.login...');
 
-      const loginConfig = {
+      const config = {
         config_id: '9698426723575894',
         response_type: 'code',
         override_default_response_type: true,
         extras: { sessionInfoVersion: '3' }
       };
-      log('⚙️ FB.login config: ' + JSON.stringify(loginConfig));
+      log('⚙️ FB.login config: ' + JSON.stringify(config));
 
       FB.login(async resp => {
         log('📥 FB.login callback');
@@ -92,13 +91,13 @@
         log(`✅ Auth code: ${code}`);
 
         if (!phoneNumberId) {
-          log('❌ phone_number_id not set');
+          log('❌ No phone_number_id');
           loginBtn.disabled = false;
           return;
         }
 
         try {
-          log('🔄 Building token exchange URL');
+          log('🔄 Exchanging code for token');
           const params = new URLSearchParams({
             client_id: FB_APP_ID,
             redirect_uri: REDIRECT_URI,
@@ -108,33 +107,31 @@
           const url = `https://graph.facebook.com/v22.0/oauth/access_token?${params}`;
           log('🌐 Token URL: ' + url);
 
-          const tokenRes = await fetch(url);
-          log('⬅️ Token response status: ' + tokenRes.status);
-          const tokenJson = await tokenRes.json();
-          log('📦 Token JSON: ' + JSON.stringify(tokenJson));
+          const res = await fetch(url);
+          log('⬅️ Token status: ' + res.status);
+          const json = await res.json();
+          log('📦 Token JSON: ' + JSON.stringify(json));
 
-          if (!tokenRes.ok) {
-            throw new Error(tokenJson.error?.message || 'Token exchange failed');
-          }
-          accessToken = tokenJson.access_token;
+          if (!res.ok) throw new Error(json.error?.message || 'Token failed');
+          accessToken = json.access_token;
           log('✅ Access token obtained');
           sendBtn.disabled = false;
         } catch (err) {
-          log('❌ Token exchange error: ' + err.message);
+          log('❌ Token error: ' + err.message);
         } finally {
           loginBtn.disabled = false;
         }
-      }, loginConfig);
+      }, config);
     };
 
-    // 2️⃣ Send WhatsApp text message
+    // 2️⃣ Send Text Message
     sendBtn.onclick = async () => {
       log('🔘 sendBtn clicked');
       if (!accessToken || !phoneNumberId) {
-        log('❌ Missing accessToken or phoneNumberId');
+        log('❌ Missing token or phoneNumberId');
         return;
       }
-      log('🔄 Preparing message payload');
+      log('🔄 Preparing message');
 
       const url = `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`;
       const payload = {
@@ -155,14 +152,12 @@
           },
           body: JSON.stringify(payload)
         });
-        log('⬅️ Send response status: ' + res.status);
+        log('⬅️ Send status: ' + res.status);
         const data = await res.json();
-        log('📦 Send response JSON: ' + JSON.stringify(data));
+        log('📦 Send JSON: ' + JSON.stringify(data));
 
-        if (!res.ok) {
-          throw new Error(data.error?.message || 'Send message failed');
-        }
-        log('✅ Message sent successfully');
+        if (!res.ok) throw new Error(data.error?.message || 'Send failed');
+        log('✅ Message sent');
       } catch (err) {
         log('❌ Send error: ' + err.message);
       }
