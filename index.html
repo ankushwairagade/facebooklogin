@@ -18,6 +18,8 @@
       if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") {
         return;
       }
+
+      
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'WA_EMBEDDED_SIGNUP') {
