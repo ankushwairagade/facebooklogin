@@ -1,0 +1,12 @@
+{
+    "name": "whatsapp-embedded-signup",
+    "version": "1.0.0",
+    "main": "./api/exchange_code.js",
+    "scripts": {
+      "start": "vercel dev"
+    },
+    "dependencies": {
+      "node-fetch": "^2.6.7"
+    }
+  }
+  

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WhatsApp Embedded Signup & Integration</title>
+  <style>
+    #loginBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+    #status { margin-top:1em; white-space:pre-wrap; font-family:monospace; }
+  </style>
+</head>
+<body>
+  <button id="loginBtn">Login & Fetch WhatsApp Details</button>
+  <div id="status"></div>
+
+  <script async defer src="https://connect.facebook.net/en_US/sdk.js"></script>
+  <script>
+    const API_BASE = '/api';
+    const loginBtn = document.getElementById('loginBtn');
+    const statusEl = document.getElementById('status');
+    let phoneNumberId = null;
+
+    function logStatus(msg) {
+      console.log(msg);
+      statusEl.textContent += msg + '\n';
+    }
+
+    window.fbAsyncInit = function() {
+      FB.init({ appId: process.env.FB_APP_ID, version: 'v22.0' });
+      logStatus('FB SDK initialized');
+    };
+
+    window.addEventListener('message', ({ origin, data }) => {
+      if (!['https://www.facebook.com','https://web.facebook.com'].includes(origin)) return;
+      try {
+        const msg = JSON.parse(data);
+        if (msg.type === 'WA_EMBEDDED_SIGNUP') {
+          phoneNumberId = msg.data.phone_number_id;
+          logStatus(`Received phone_number_id: ${phoneNumberId}`);
+        }
+      } catch {}
+    });
+
+    loginBtn.addEventListener('click', () => {
+      loginBtn.disabled = true;
+      logStatus('Starting FB login...');
+      FB.login(resp => {
+        logStatus('📥 FB.login callback');
+        if (!resp.authResponse) return logStatus('Login failed.');
+        const code = resp.authResponse.code;
+        logStatus(`Auth code: ${code}`);
+        if (!phoneNumberId) return logStatus('No phone_number_id yet.');
+
+        (async () => {
+          logStatus('Exchanging code...');
+          const r = await fetch(`${API_BASE}/exchange_code`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ code, phone_number_id: phoneNumberId })
+          });
+          const d = await r.json();
+          logStatus(`Status ${r.status}`);
+          if (!r.ok) return logStatus(`Error: ${d.error}`);
+          logStatus('Details:');
+          logStatus(JSON.stringify(d, null,2));
+        })();
+      }, {
+        config_id: '9698426723575894',
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: { sessionInfoVersion: '3' }
+      });
+    });
+  </script>
+</body>
+</html>
