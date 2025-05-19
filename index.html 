@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WhatsApp Embedded Signup & Integration</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    button { padding: 10px 20px; font-size: 16px; margin-top: 10px; }
+    #status { white-space: pre-wrap; margin-top: 20px; background: #f9f9f9; padding: 10px; border: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <h1>WhatsApp Embedded Signup</h1>
+  <button id="loginBtn">Login & Fetch Token</button>
+  <button id="sendBtn" disabled>Send Message</button>
+  <div id="status"></div>
+
+  <!-- Facebook SDK -->
+  <script async defer crossorigin="anonymous"
+    src="https://connect.facebook.net/en_US/sdk.js"></script>
+
+  <script>
+    // === Configuration ===
+    const FB_APP_ID      = '665303969425082';
+    const FB_APP_SECRET  = 'f5ce60bc67adbe6a24b6a46273e12b95';
+    const REDIRECT_URI   = window.location.origin;
+    const RECIPIENT_NUMBER = '+917276517716';
+
+    // === UI Elements & State ===
+    const loginBtn = document.getElementById('loginBtn');
+    const sendBtn  = document.getElementById('sendBtn');
+    const statusEl = document.getElementById('status');
+    let phoneNumberId = null;
+    let accessToken   = null;
+
+    function log(msg) {
+      console.log(msg);
+      statusEl.textContent += msg + '
+';
+    }
+
+    // Initial load
+    log('🔧 Script loaded');
+
+    // Initialize FB SDK
+    window.fbAsyncInit = () => {
+      log('🔧 fbAsyncInit called');
+      FB.init({ appId: FB_APP_ID, version: 'v22.0' });
+      log('✅ FB SDK initialized');
+    };
+
+    // Listen for WA Embedded Signup event
+    window.addEventListener('message', ({ origin, data }) => {
+      log(`🔔 message event from ${origin}`);
+      if (!['https://www.facebook.com','https://web.facebook.com'].includes(origin)) return;
+      try {
+        const msg = JSON.parse(data);
+        log('📩 Parsed message: ' + data);
+        if (msg.type === 'WA_EMBEDDED_SIGNUP') {
+          phoneNumberId = msg.data.phone_number_id;
+          log(`✅ phone_number_id received: ${phoneNumberId}`);
+        }
+      } catch (e) {
+        log('❌ Message parsing error: ' + e.message);
+      }
+    });
+
+    // 1️⃣ Login & exchange code for access token
+    loginBtn.onclick = () => {
+      log('🔘 loginBtn clicked');
+      loginBtn.disabled = true;
+      log('🔄 Starting FB.login...');
+
+      const loginConfig = {
+        config_id: '9698426723575894',
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: { sessionInfoVersion: '3' }
+      };
+      log('⚙️ FB.login config: ' + JSON.stringify(loginConfig));
+
+      FB.login(async resp => {
+        log('📥 FB.login callback');
+        log('📄 Response: ' + JSON.stringify(resp));
+        if (!resp.authResponse || !resp.authResponse.code) {
+          log('❌ FB.login failed');
+          loginBtn.disabled = false;
+          return;
+        }
+        const code = resp.authResponse.code;
+        log(`✅ Auth code: ${code}`);
+
+        if (!phoneNumberId) {
+          log('❌ phone_number_id not set');
+          loginBtn.disabled = false;
+          return;
+        }
+
+        try {
+          log('🔄 Building token exchange URL');
+          const params = new URLSearchParams({
+            client_id: FB_APP_ID,
+            redirect_uri: REDIRECT_URI,
+            client_secret: FB_APP_SECRET,
+            code
+          });
+          const url = `https://graph.facebook.com/v22.0/oauth/access_token?${params}`;
+          log('🌐 Token URL: ' + url);
+
+          const tokenRes = await fetch(url);
+          log('⬅️ Token response status: ' + tokenRes.status);
+          const tokenJson = await tokenRes.json();
+          log('📦 Token JSON: ' + JSON.stringify(tokenJson));
+
+          if (!tokenRes.ok) {
+            throw new Error(tokenJson.error?.message || 'Token exchange failed');
+          }
+          accessToken = tokenJson.access_token;
+          log('✅ Access token obtained');
+          sendBtn.disabled = false;
+        } catch (err) {
+          log('❌ Token exchange error: ' + err.message);
+        } finally {
+          loginBtn.disabled = false;
+        }
+      }, loginConfig);
+    };
+
+    // 2️⃣ Send WhatsApp text message
+    sendBtn.onclick = async () => {
+      log('🔘 sendBtn clicked');
+      if (!accessToken || !phoneNumberId) {
+        log('❌ Missing accessToken or phoneNumberId');
+        return;
+      }
+      log('🔄 Preparing message payload');
+
+      const url = `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`;
+      const payload = {
+        messaging_product: 'whatsapp',
+        to: RECIPIENT_NUMBER,
+        type: 'text',
+        text: { body: 'Hello from WhatsApp API' }
+      };
+      log('📦 Payload: ' + JSON.stringify(payload));
+      log('🌐 POST to: ' + url);
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        log('⬅️ Send response status: ' + res.status);
+        const data = await res.json();
+        log('📦 Send response JSON: ' + JSON.stringify(data));
+
+        if (!res.ok) {
+          throw new Error(data.error?.message || 'Send message failed');
+        }
+        log('✅ Message sent successfully');
+      } catch (err) {
+        log('❌ Send error: ' + err.message);
+      }
+    };
+  </script>
+</body>
+</html>
