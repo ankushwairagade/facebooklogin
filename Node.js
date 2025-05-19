@@ -1,71 +1,102 @@
+require('dotenv').config();
 const express = require('express');
 const fetch = require('node-fetch');
+const helmet = require('helmet');
+const morgan = require('morgan');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+app.use(helmet());
+app.use(morgan('combined'));
+app.use(cors({ origin: true }));
 app.use(express.json());
 
-// Replace with your actual values
-const APP_ID = '665303969425082';
-const APP_SECRET = 'f5ce60bc67adbe6a24b6a46273e12b95'; // ⚠️ Never expose this in frontend
-const REDIRECT_URI = 'https://www.facebook.com';
+const { FB_APP_ID, FB_APP_SECRET, REDIRECT_URI, PORT = 3000 } = process.env;
+if (!FB_APP_ID || !FB_APP_SECRET || !REDIRECT_URI) {
+  console.error('❌ Missing environment variables');
+  process.exit(1);
+}
+
+async function graphGet(path, token) {
+  const url = `https://graph.facebook.com/v22.0/${path}`;
+  const res = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Graph GET error ${res.status}: ${err}`);
+  }
+  return res.json();
+}
+
+async function graphPost(path, token, body) {
+  const url = `https://graph.facebook.com/v22.0/${path}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Graph POST error ${res.status}: ${err}`);
+  }
+  return res.json();
+}
 
 app.post('/exchange_code', async (req, res) => {
   const { code, phone_number_id } = req.body;
-
-  const params = new URLSearchParams({
-    client_id: APP_ID,
-    client_secret: APP_SECRET,
-    redirect_uri: REDIRECT_URI,
-    code
-  });
-
+  if (!code || !phone_number_id) {
+    return res.status(400).json({ error: 'Missing code or phone_number_id' });
+  }
   try {
-    const tokenRes = await fetch(`https://graph.facebook.com/v22.0/oauth/access_token?${params}`);
-    const tokenData = await tokenRes.json();
+    const tokenData = await graphGet(
+      `oauth/access_token?client_id=${FB_APP_ID}` +
+      `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+      `&client_secret=${FB_APP_SECRET}` +
+      `&code=${code}`
+    );
+    const { access_token } = tokenData;
 
-    if (tokenData.access_token) {
-      res.json({
-        access_token: tokenData.access_token,
-        phone_number_id
-      });
-    } else {
-      res.status(400).json({ error: 'Invalid token response', details: tokenData });
-    }
+    const [phoneDetails, templates] = await Promise.all([
+      graphGet(`${phone_number_id}?fields=display_phone_number,quality_rating,verified_name_code`, access_token),
+      graphGet(`${phone_number_id}/message_templates?limit=50&fields=name,language,category`, access_token)
+    ]);
+
+    res.json({
+      access_token,
+      phone_number_id,
+      phone_details: phoneDetails,
+      message_templates: templates.data
+    });
   } catch (err) {
-    console.error('Error exchanging code:', err);
-    res.status(500).send('Token exchange failed');
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 });
 
 app.post('/send_message', async (req, res) => {
-  const { token, phone_number_id, to } = req.body;
-
+  const { access_token, phone_number_id, to, template_name, language } = req.body;
+  if (!access_token || !phone_number_id || !to || !template_name || !language) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
   try {
-    const result = await fetch(`https://graph.facebook.com/v18.0/${phone_number_id}/messages`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to,
-        type: 'template',
-        template: {
-          name: 'hello_world',
-          language: { code: 'en_US' }
-        }
-      })
-    });
-
-    const responseData = await result.json();
-    res.json(responseData);
+    const payload = {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'template',
+      template: { name: template_name, language: { code: language } }
+    };
+    const result = await graphPost(`${phone_number_id}/messages`, access_token, payload);
+    res.json(result);
   } catch (err) {
-    console.error('Message send failed:', err);
-    res.status(500).send('Sending message failed');
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.listen(3000, () => console.log('🚀 Backend running at http://localhost:3000'));
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+app.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));

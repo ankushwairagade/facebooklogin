@@ -1,181 +1,91 @@
-<!-- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WhatsApp Embedded Signup</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WhatsApp Signup & Integration</title>
+  <style>
+    #loginBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+    #status { margin-top: 1em; white-space: pre-wrap; font-family: monospace; }
+  </style>
 </head>
 <body>
-  <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+  <button id="loginBtn">Login & Fetch WhatsApp Details</button>
+  <div id="status"></div>
 
+  <script async defer src="https://connect.facebook.net/en_US/sdk.js"></script>
   <script>
-    // SDK initialization
-    window.fbAsyncInit = function() {
+    const loginBtn = document.getElementById('loginBtn');
+    const statusEl = document.getElementById('status');
+    const API_BASE = 'https://facebooklogin-phi.vercel.app';
+    let phoneNumberId = null;
+
+    const logStatus = msg => {
+      console.log(msg);
+      statusEl.textContent += msg + '\n';
+    };
+
+    window.fbAsyncInit = () => {
       FB.init({
-        appId: '665303969425082', // Replace with your app ID
-        autoLogAppEvents: true,
-        xfbml: true,
-        version: 'v22.0' // Replace with the Graph API version
+        appId: '665303969425082',
+        version: 'v22.0',
+        xfbml: false,
+        autoLogAppEvents: false
       });
     };
 
-    // Session logging message event listener
-    window.addEventListener('message', (event) => {
-      if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") return;
+    window.addEventListener('message', ({ origin, data }) => {
+      if (!['https://www.facebook.com', 'https://web.facebook.com'].includes(origin)) return;
       try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'WA_EMBEDDED_SIGNUP') {
-          console.log('Embedded Signup Data:', data);
-          // Log WABA ID and phone number ID
-          const { waba_id, phone_number_id } = data.data;
-          console.log('WABA ID:', waba_id);
-          console.log('Phone Number ID:', phone_number_id);
+        const msg = JSON.parse(data);
+        if (msg.type === 'WA_EMBEDDED_SIGNUP') {
+          phoneNumberId = msg.data.phone_number_id;
+          logStatus(`Received phone_number_id: ${phoneNumberId}`);
         }
-      } catch (error) {
-        console.error('Error parsing message event:', error);
-      }
+      } catch {}
     });
 
-    // Response callback
-    const fbLoginCallback = (response) => {
-      if (response.authResponse) {
-        const code = response.authResponse.code;
-        console.log('Auth Response Code:', code);
-        // Send code to your server to exchange for a business token
-        // Example: fetch('/exchange_code', { method: 'POST', body: JSON.stringify({ code }) });
-      } else {
-        console.error('Login failed:', response);
-      }
-    };
+    loginBtn.addEventListener('click', () => {
+      loginBtn.disabled = true;
+      logStatus('Starting FB login...');
 
-    // Launch method and callback registration
-    const launchWhatsAppSignup = () => {
-      FB.login(fbLoginCallback, {
-        config_id: '9698426723575894', // Replace with your configuration ID
+      FB.login(async resp => {
+        if (!resp.authResponse) {
+          logStatus('Login failed.');
+          loginBtn.disabled = false;
+          return;
+        }
+        const code = resp.authResponse.code;
+        if (!phoneNumberId) {
+          logStatus('phone_number_id not received yet.');
+          loginBtn.disabled = false;
+          return;
+        }
+
+        logStatus('Exchanging code for access token...');
+        try {
+          const res = await fetch(`${API_BASE}/exchange_code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, phone_number_id: phoneNumberId })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Unknown error');
+
+          logStatus('✅ Details fetched:');
+          logStatus(JSON.stringify(data, null, 2));
+        } catch (e) {
+          logStatus(`Error: ${e.message}`);
+        } finally {
+          loginBtn.disabled = false;
+        }
+      }, {
+        config_id: '9698426723575894',
         response_type: 'code',
         override_default_response_type: true,
-        extras: {
-          sessionInfoVersion: '3',
-        }
+        extras: { sessionInfoVersion: '3' }
       });
-    };
+    });
   </script>
-
-  <button onclick="launchWhatsAppSignup()" style="background-color: #1877f2; border: 0; border-radius: 4px; color: #fff; cursor: pointer; font-family: Helvetica, Arial, sans-serif; font-size: 16px; font-weight: bold; height: 40px; padding: 0 24px;">Login with Facebook</button>
 </body>
 </html>
- -->
-
- <!DOCTYPE html>
- <html lang="en">
- <head>
-   <meta charset="UTF-8" />
-   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-   <title>WhatsApp Embedded Signup</title>
- </head>
- <body>
-   <!-- Facebook SDK -->
-   <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
- 
-   <script>
-     let phoneNumberId = null; // Store phone_number_id globally
- 
-     // SDK initialization
-     window.fbAsyncInit = function() {
-       FB.init({
-         appId: '665303969425082', // ✅ Your App ID
-         autoLogAppEvents: true,
-         xfbml: true,
-         version: 'v22.0'
-       });
-     };
- 
-     // Listen for embedded signup event
-     window.addEventListener('message', (event) => {
-       if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") return;
-       try {
-         const data = JSON.parse(event.data);
-         if (data.type === 'WA_EMBEDDED_SIGNUP') {
-           const { waba_id, phone_number_id } = data.data;
-           console.log('WABA ID:', waba_id);
-           console.log('Phone Number ID:', phone_number_id);
-           phoneNumberId = phone_number_id; // Store for later use
-         }
-       } catch (error) {
-         console.error('Error parsing message event:', error);
-       }
-     });
- 
-     // Facebook login callback
-     const fbLoginCallback = (response) => {
-       if (response.authResponse) {
-         const code = response.authResponse.code;
-         console.log('Auth Code:', code);
- 
-         if (!phoneNumberId) {
-           alert("Phone Number ID not received yet. Please wait a moment after signup.");
-           return;
-         }
- 
-         // Send code + phone_number_id to backend
-         fetch('http://localhost:3000/exchange_code', {
-           method: 'POST',
-           headers: {
-             'Content-Type': 'application/json'
-           },
-           body: JSON.stringify({
-             code,
-             phone_number_id: phoneNumberId
-           })
-         })
-         .then(res => res.json())
-         .then(data => {
-           console.log('Access Token:', data.access_token);
-           console.log('Phone Number ID:', data.phone_number_id);
- 
-           // Optionally, send message right away:
-           fetch('http://localhost:3000/send_message', {
-             method: 'POST',
-             headers: {
-               'Content-Type': 'application/json'
-             },
-             body: JSON.stringify({
-               token: data.access_token,
-               phone_number_id: data.phone_number_id,
-               to: 'RECIPIENT_PHONE_NUMBER' // Replace with actual number
-             })
-           })
-           .then(res => res.json())
-           .then(msg => console.log('Message sent:', msg))
-           .catch(err => console.error('Failed to send message', err));
-         })
-         .catch(err => console.error('Error getting access token:', err));
-       } else {
-         console.error('Login failed:', response);
-       }
-     };
- 
-     // Launch WhatsApp embedded signup
-     const launchWhatsAppSignup = () => {
-       FB.login(fbLoginCallback, {
-         config_id: '9698426723575894', // ✅ Your Config ID
-         response_type: 'code',
-         override_default_response_type: true,
-         extras: {
-           sessionInfoVersion: '3'
-         }
-       });
-     };
-   </script>
- 
-   <div>
-
-    <h1>hello world</h1>
-   </div>
-   <!-- Button -->
-   <button onclick="launchWhatsAppSignup()" style="background-color: #1877f2; border: 0; border-radius: 4px; color: #fff; font-size: 16px; padding: 10px 24px;">Login with Facebook</button>
- </body>
- </html>
- 
-
- 
