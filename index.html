@@ -1,51 +1,108 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>WhatsApp Signup & Send</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Embedded Signup</title>
   <style>
-    body { font:16px Arial; padding:20px }
-    button { margin:5px; padding:10px 20px }
-    #status { margin-top:20px; white-space:pre-wrap; background:#f9f9f9; padding:10px; border:1px solid #ddd }
+    body { font-family: Helvetica, Arial, sans-serif; padding: 20px; }
+    button { background-color: #1877f2; border: none; border-radius: 4px; color: #fff; cursor: pointer;
+             font-size: 16px; font-weight: bold; height: 40px; padding: 0 24px; margin-right: 10px; }
+    pre { background: #f4f4f4; border: 1px solid #ddd; padding: 10px; white-space: pre-wrap; max-height: 200px; overflow: auto; }
+    h2 { margin-top: 20px; }
   </style>
 </head>
 <body>
-  <h1>WhatsApp Embedded Signup</h1>
-  <button id="signup">Start Signup</button>
-  <button id="send" disabled>Send Message</button>
-  <div id="status"></div>
+  <h1>WhatsApp Embedded Signup Integration Helper</h1>
+  <button id="loginBtn">Login with Facebook</button>
 
-  <!-- FB SDK -->
-  <script>
-    function log(m){console.log(m);status.textContent+=m+"\n"}
-    window.fbAsyncInit=function(){FB.init({appId:"665303969425082",autoLogAppEvents:true,xfbml:true,version:"v22.0"});log("✅ FB SDK ready")};
-  </script>
+  <h2>Session Info Response:</h2>
+  <pre id="session-info-response"></pre>
+
+  <h2>SDK Response:</h2>
+  <pre id="sdk-response"></pre>
+
+  <!-- Load Facebook SDK -->
   <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
-
   <script>
-    const CONFIG_ID="9698426723575894", BACKEND="https://facebooklogin-phi.vercel.app", TO="+917276517716";
-    const btnSignup=document.getElementById("signup"), btnSend=document.getElementById("send"), status=document.getElementById("status");
-    let code, phoneId;
+    // UI elements
+    const loginBtn = document.getElementById('loginBtn');
+    const sessionPre = document.getElementById('session-info-response');
+    const sdkPre     = document.getElementById('sdk-response');
 
-    btnSignup.onclick=()=>{
-      btnSignup.disabled=true; log("🔄 Launching signup");
-      FB.ui({method:"whatsapp_business_signup",config_id:CONFIG_ID,response_type:"code",redirect_uri:location.origin},r=>{
-        if(!r||!r.code||!r.phone_number_id){log("❌ Signup failed");btnSignup.disabled=false;return}
-        code=r.code;phoneId=r.phone_number_id;log(`✅ code:${code}`);log(`✅ phoneId:${phoneId}`);
-        btnSend.disabled=false;btnSignup.disabled=false;
+    // Logging helpers
+    function logSession(obj) {
+      console.log('SessionEvent:', obj);
+      sessionPre.textContent += JSON.stringify(obj, null, 2) + '
+';
+    }
+    function logSDK(obj) {
+      console.log('SDKResponse:', obj);
+      sdkPre.textContent += JSON.stringify(obj, null, 2) + '
+';
+    }
+    function logInfo(msg) {
+      console.log(msg);
+      sdkPre.textContent += msg + '
+';
+    }
+
+    // Initialize FB SDK
+    window.fbAsyncInit = function() {
+      console.log('fbAsyncInit called');
+      FB.init({
+        appId: '665303969425082',
+        autoLogAppEvents: true,
+        xfbml: true,
+        version: 'v22.0'
       });
+      logInfo('✅ FB SDK initialized');
     };
 
-    btnSend.onclick=async()=>{
-      btnSend.disabled=true;log("🔄 Sending message");
-      try{
-        const res=await fetch(BACKEND+"/send_message",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code,phone_number_id:phoneId})});
-        const d=await res.json();log(`⬅️ ${res.status}`);
-        if(!res.ok)throw new Error(d.error||"send error");
-        log(`✅ Sent:${JSON.stringify(d)}`)
-      }catch(e){log("❌ "+e.message)}finally{btnSend.disabled=false}
-    };
+    // Handle embedded signup events
+    window.addEventListener('message', event => {
+      console.log('Message event:', event.origin, event.data);
+      if (!['https://www.facebook.com', 'https://web.facebook.com'].includes(event.origin)) return;
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (err) {
+        console.warn('Non-JSON message:', event.data);
+        return;
+      }
+      if (data.type === 'WA_EMBEDDED_SIGNUP') {
+        logSession(data);
+        const { event: ev, data: d } = data;
+        if (ev === 'FINISH')      console.log('Signup finished:', d);
+        else if (ev === 'CANCEL') console.warn('Signup canceled:', d);
+        else if (ev === 'ERROR')  console.error('Signup error:', d);
+      }
+    });
+
+    // Facebook login callback
+    function fbLoginCallback(response) {
+      console.log('fbLoginCallback:', response);
+      logSDK(response);
+      if (response.authResponse) {
+        console.log('Auth code:', response.authResponse.code);
+      }
+    }
+
+    // Launch embedded signup
+    function launchWhatsAppSignup() {
+      console.log('launchWhatsAppSignup called');
+      FB.login(fbLoginCallback, {
+        config_id: '9698426723575894',
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: { setup: {}, featureType: '', sessionInfoVersion: '3' }
+      });
+    }
+
+    loginBtn.addEventListener('click', () => {
+      console.log('Login button clicked');
+      launchWhatsAppSignup();
+    });
   </script>
 </body>
 </html>
