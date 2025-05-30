@@ -16,7 +16,13 @@
       height: 40px;
       padding: 0 24px;
     }
-    pre { background: #f5f5f5; padding: 8px; border-radius: 4px; }
+    pre {
+      background: #f5f5f5;
+      padding: 8px;
+      border-radius: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
@@ -34,14 +40,14 @@
 
   <script>
     // —————— Configuration ——————
-    const FB_APP_ID     = '665303969425082';
-    const FB_CONFIG_ID  = '9698426723575894';
-    const FB_SDK_VERSION= 'v22.0';
-    const REDIRECT_URI  = encodeURIComponent('https://spiny-good-deltadromeus.glitch.me/webhook');
-    
-    //https://your.backend.com/facebook/callback');
-    // (Your backend will read the `code` query and swap it server-side
-    //   using your client_secret, then return the token JSON here.)
+    const FB_APP_ID      = '665303969425082';
+    const FB_CONFIG_ID   = '9698426723575894';
+    const FB_SDK_VERSION = 'v22.0';
+    // const REDIRECT_URI   = encodeURIComponent('https://your.backend.com/facebook/callback');
+        const REDIRECT_URI  = encodeURIComponent('https://spiny-good-deltadromeus.glitch.me/webhook');
+
+    // Your backend endpoint should accept `code` and `redirect_uri`, swap with client_secret server-side,
+    // then return JSON { access_token, token_type, expires_in, ... }.
 
     // —————— Cache DOM nodes ——————
     const els = {
@@ -74,17 +80,19 @@
     // —————— Exchange `code` for Access Token (via your backend) ——————
     async function swapCodeForToken(code) {
       const resp = await fetch(`/api/facebook/exchange?code=${code}&redirect_uri=${REDIRECT_URI}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok) throw new Error(`Token exchange failed (${resp.status})`);
       return resp.json();
     }
 
     // —————— Handle FB.login callback ——————
     async function fbLoginHandler(response) {
       els.sdk.textContent = JSON.stringify(response, null, 2);
-      if (!response.authResponse?.code) return;
+
+      const code = response.authResponse?.code;
+      if (!code) return;
 
       try {
-        const tokenData = await swapCodeForToken(response.authResponse.code);
+        const tokenData = await swapCodeForToken(code);
         els.token.textContent = JSON.stringify(tokenData, null, 2);
       } catch (err) {
         console.error('Token exchange failed:', err);
@@ -95,12 +103,22 @@
     // —————— Kick off login flow ——————
     async function launchWhatsAppSignup() {
       await loadFacebookSDK();
-      FB.login(fbLoginHandler, {
-        config_id:                        FB_CONFIG_ID,
-        response_type:                   'code',
-        override_default_response_type:  true,
-        extras: { setup: {}, sessionInfoVersion: '3' }
-      });
+
+      // FB.login requires a plain function, not async
+      FB.login(
+        function(response) {
+          fbLoginHandler(response);
+        },
+        {
+          config_id:                       FB_CONFIG_ID,
+          response_type:                  'code',
+          override_default_response_type: true,
+          extras: {
+            setup: {},
+            sessionInfoVersion: '3'
+          }
+        }
+      );
     }
 
     // —————— Wire up button ——————
@@ -123,7 +141,7 @@
           }
         }
       } catch {
-        // non-JSON messages can be ignored
+        // ignore non-JSON messages
       }
     });
   </script>
