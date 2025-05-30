@@ -3,82 +3,129 @@
 <head>
   <meta charset="UTF-8">
   <title>Embedded Signup</title>
+  <style>
+    button {
+      background-color: #1877f2;
+      border: none;
+      border-radius: 4px;
+      color: #fff;
+      cursor: pointer;
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      font-weight: bold;
+      height: 40px;
+      padding: 0 24px;
+    }
+    pre { background: #f5f5f5; padding: 8px; border-radius: 4px; }
+  </style>
 </head>
 <body>
   <div id="fb-root"></div>
-  <button onclick="launchWhatsAppSignup()" style="background-color: #1877f2; border: 0; border-radius: 4px; color: #fff; cursor: pointer; font-family: Helvetica, Arial, sans-serif; font-size: 16px; font-weight: bold; height: 40px; padding: 0 24px;">Login with Facebook</button>
+  <button id="fb-login-btn">Login with Facebook</button>
+
   <p>Session info response:</p>
   <pre id="session-info-response"></pre>
-  </br>
+
   <p>SDK response:</p>
   <pre id="sdk-response"></pre>
 
+  <p>Access Token response:</p>
+  <pre id="token-response"></pre>
+
   <script>
-    window.addEventListener('message', (event) => {
-      if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") {
-        return;
-      }
+    // —————— Configuration ——————
+    const FB_APP_ID     = '665303969425082';
+    const FB_CONFIG_ID  = '9698426723575894';
+    const FB_SDK_VERSION= 'v22.0';
+    const REDIRECT_URI  = encodeURIComponent('https://spiny-good-deltadromeus.glitch.me/webhook');
+    
+    //https://your.backend.com/facebook/callback');
+    // (Your backend will read the `code` query and swap it server-side
+    //   using your client_secret, then return the token JSON here.)
+
+    // —————— Cache DOM nodes ——————
+    const els = {
+      session: document.getElementById('session-info-response'),
+      sdk:     document.getElementById('sdk-response'),
+      token:   document.getElementById('token-response'),
+      button:  document.getElementById('fb-login-btn'),
+    };
+
+    // —————— Load FB SDK once ——————
+    function loadFacebookSDK() {
+      if (window.FB) return Promise.resolve(window.FB);
+      return new Promise(resolve => {
+        window.fbAsyncInit = () => {
+          FB.init({
+            appId:            FB_APP_ID,
+            autoLogAppEvents: true,
+            xfbml:            false,
+            version:          FB_SDK_VERSION
+          });
+          resolve(FB);
+        };
+        const script = document.createElement('script');
+        script.src = 'https://connect.facebook.net/en_US/sdk.js';
+        script.async = true;
+        document.head.appendChild(script);
+      });
+    }
+
+    // —————— Exchange `code` for Access Token (via your backend) ——————
+    async function swapCodeForToken(code) {
+      const resp = await fetch(`/api/facebook/exchange?code=${code}&redirect_uri=${REDIRECT_URI}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      return resp.json();
+    }
+
+    // —————— Handle FB.login callback ——————
+    async function fbLoginHandler(response) {
+      els.sdk.textContent = JSON.stringify(response, null, 2);
+      if (!response.authResponse?.code) return;
+
       try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'WA_EMBEDDED_SIGNUP') {
-          // if user finishes the Embedded Signup flow
-          if (data.event === 'FINISH') {
-            const {phone_number_id, waba_id} = data.data;
-            console.log("Phone number ID ", phone_number_id, " WhatsApp business account ID ", waba_id);
-            // if user cancels the Embedded Signup flow
-          } else if (data.event === 'CANCEL') {
-            const {current_step} = data.data;
-            console.warn("Cancel at ", current_step);
-            // if user reports an error during the Embedded Signup flow
-          } else if (data.event === 'ERROR') {
-            const {error_message} = data.data;
-            console.error("error ", error_message);
+        const tokenData = await swapCodeForToken(response.authResponse.code);
+        els.token.textContent = JSON.stringify(tokenData, null, 2);
+      } catch (err) {
+        console.error('Token exchange failed:', err);
+        els.token.textContent = `Error: ${err.message}`;
+      }
+    }
+
+    // —————— Kick off login flow ——————
+    async function launchWhatsAppSignup() {
+      await loadFacebookSDK();
+      FB.login(fbLoginHandler, {
+        config_id:                        FB_CONFIG_ID,
+        response_type:                   'code',
+        override_default_response_type:  true,
+        extras: { setup: {}, sessionInfoVersion: '3' }
+      });
+    }
+
+    // —————— Wire up button ——————
+    els.button.addEventListener('click', launchWhatsAppSignup);
+
+    // —————— Listen for WA_EMBEDDED_SIGNUP postMessages ——————
+    window.addEventListener('message', event => {
+      const { origin, data } = event;
+      if (!['https://www.facebook.com','https://web.facebook.com'].includes(origin)) return;
+      try {
+        const msg = JSON.parse(data);
+        if (msg.type === 'WA_EMBEDDED_SIGNUP') {
+          els.session.textContent = JSON.stringify(msg, null, 2);
+          if (msg.event === 'FINISH') {
+            console.log('✅ Signup finished:', msg.data);
+          } else if (msg.event === 'CANCEL') {
+            console.warn('⚠️ Cancelled at:', msg.data.current_step);
+          } else if (msg.event === 'ERROR') {
+            console.error('❌ Error:', msg.data.error_message);
           }
         }
-        document.getElementById("session-info-response").textContent = JSON.stringify(data, null, 2);
       } catch {
-        console.log('Non JSON Responses', event.data);
+        // non-JSON messages can be ignored
       }
     });
-  </script>
-
-  <script>
-    const fbLoginCallback = (response) => {
-      if (response.authResponse) {
-        const code = response.authResponse.code;
-        // The returned code must be transmitted to your backend first and then
-        // perform a server-to-server call from there to our servers for an access token.
-      }
-      document.getElementById("sdk-response").textContent = JSON.stringify(response, null, 2);
-    }
-
-    const launchWhatsAppSignup = () => {
-      // Launch Facebook login
-      FB.login(fbLoginCallback, {
-        config_id: '9698426723575894', // configuration ID goes here
-        response_type: 'code', // must be set to 'code' for System User access token
-        override_default_response_type: true, // when true, any response types passed in the "response_type" will take precedence over the default types
-        extras: {
-          setup: {},
-          featureType: '',
-          sessionInfoVersion: '3',
-        }
-      });
-    }
-  </script>
-
-  <script>
-    window.fbAsyncInit = function() {
-      FB.init({
-        appId            : '665303969425082',
-        autoLogAppEvents : true,
-        xfbml            : true,
-        version          : 'v22.0'
-      });
-    };
-  </script>
-  <script async defer crossorigin="anonymous"
-    src="https://connect.facebook.net/en_US/sdk.js">
   </script>
 </body>
 </html>
